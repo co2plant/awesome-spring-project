@@ -1,0 +1,291 @@
+pipeline {
+    agent any
+
+    options {
+        timeout(time: 40, unit: 'MINUTES')
+        disableConcurrentBuilds()
+        timestamps()
+        ansiColor('xterm')
+        buildDiscarder(logRotator(numToKeepStr: '30', artifactNumToKeepStr: '20'))
+        skipDefaultCheckout(true)
+    }
+
+    tools {
+        // Configure these tool names in Jenkins Global Tool Configuration.
+        jdk 'jdk21'
+        nodejs 'node20'
+    }
+
+    environment {
+        // General
+        APP_NAME = 'awesome-spring-project'
+        BACKEND_DIR = 'awesome-project'
+        FRONTEND_DIR = 'frontend'
+        TZ = 'Asia/Seoul'
+        LANG = 'C.UTF-8'
+        LC_ALL = 'C.UTF-8'
+
+        // Build behavior (explicit settings)
+        GRADLE_ARGS = '--no-daemon --stacktrace --info --warning-mode all'
+        NPM_CI_FLAGS = '--no-audit --fund=false'
+
+        // Branch policy
+        DEV_BRANCH = 'develop'
+        PROD_BRANCH = 'main'
+
+        // Registry / image (replace with your actual values)
+        DOCKER_REGISTRY = 'registry.example.com'
+        DOCKER_NAMESPACE = 'awesome'
+        BACKEND_IMAGE_NAME = 'awesome-backend'
+        FRONTEND_IMAGE_NAME = 'awesome-frontend'
+
+        // Deployment hosts (replace; do not keep defaults in production)
+        DEV_DEPLOY_HOST = 'dev.example.com'
+        PROD_DEPLOY_HOST = 'prod.example.com'
+        DEPLOY_SSH_USER = 'deploy'
+
+        // Jenkins Credentials IDs (must exist in Jenkins)
+        GIT_CREDENTIALS_ID = 'git-credentials-id'
+        REGISTRY_CREDENTIALS_ID = 'registry-credentials-id'
+        DEPLOY_SSH_CREDENTIALS_ID = 'deploy-ssh-key-id'
+        JAVA_TRUSTSTORE_FILE_CRED_ID = 'java-truststore-file-id'
+        JAVA_TRUSTSTORE_PASSWORD_CRED_ID = 'java-truststore-password-id'
+        NODE_CA_CERT_FILE_CRED_ID = 'node-ca-cert-file-id'
+        DB_URL_CRED_ID = 'db-url-id'
+        DB_USERNAME_CRED_ID = 'db-username-id'
+        DB_PASSWORD_CRED_ID = 'db-password-id'
+    }
+
+    stages {
+        stage('Validate Explicit Configuration') {
+            steps {
+                script {
+                    def invalidDefaults = [
+                        'registry.example.com',
+                        'dev.example.com',
+                        'prod.example.com',
+                        'git-credentials-id',
+                        'registry-credentials-id',
+                        'deploy-ssh-key-id',
+                        'java-truststore-file-id',
+                        'java-truststore-password-id',
+                        'node-ca-cert-file-id',
+                        'db-url-id',
+                        'db-username-id',
+                        'db-password-id'
+                    ]
+                    def currentValues = [
+                        env.DOCKER_REGISTRY,
+                        env.DEV_DEPLOY_HOST,
+                        env.PROD_DEPLOY_HOST,
+                        env.GIT_CREDENTIALS_ID,
+                        env.REGISTRY_CREDENTIALS_ID,
+                        env.DEPLOY_SSH_CREDENTIALS_ID,
+                        env.JAVA_TRUSTSTORE_FILE_CRED_ID,
+                        env.JAVA_TRUSTSTORE_PASSWORD_CRED_ID,
+                        env.NODE_CA_CERT_FILE_CRED_ID,
+                        env.DB_URL_CRED_ID,
+                        env.DB_USERNAME_CRED_ID,
+                        env.DB_PASSWORD_CRED_ID
+                    ]
+                    if (currentValues.any { it == null || it.trim().isEmpty() || invalidDefaults.contains(it) }) {
+                        error('Jenkinsfile contains unresolved placeholder values. Replace all explicit configuration values and credentials IDs before running.')
+                    }
+                }
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                checkout([
+                    $class: 'GitSCM',
+                    branches: scm.branches,
+                    doGenerateSubmoduleConfigurations: false,
+                    extensions: [[$class: 'CleanCheckout']],
+                    userRemoteConfigs: [[
+                        credentialsId: "${env.GIT_CREDENTIALS_ID}",
+                        url: scm.userRemoteConfigs[0].url
+                    ]]
+                ])
+            }
+        }
+
+        stage('Backend Build & Test') {
+            steps {
+                withCredentials([
+                    file(credentialsId: "${env.JAVA_TRUSTSTORE_FILE_CRED_ID}", variable: 'JAVA_TRUSTSTORE_PATH'),
+                    string(credentialsId: "${env.JAVA_TRUSTSTORE_PASSWORD_CRED_ID}", variable: 'JAVA_TRUSTSTORE_PASSWORD'),
+                    string(credentialsId: "${env.DB_URL_CRED_ID}", variable: 'DB_URL'),
+                    string(credentialsId: "${env.DB_USERNAME_CRED_ID}", variable: 'DB_USERNAME'),
+                    string(credentialsId: "${env.DB_PASSWORD_CRED_ID}", variable: 'DB_PASSWORD')
+                ]) {
+                    dir("${env.BACKEND_DIR}") {
+                        script {
+                            if (isUnix()) {
+                                sh '''
+                                    set -eu
+                                    export JAVA_TOOL_OPTIONS="-Dfile.encoding=UTF-8 -Duser.timezone=${TZ} -Djavax.net.ssl.trustStore=${JAVA_TRUSTSTORE_PATH} -Djavax.net.ssl.trustStorePassword=${JAVA_TRUSTSTORE_PASSWORD}"
+                                    chmod +x ./gradlew
+                                    ./gradlew clean test build ${GRADLE_ARGS}
+                                '''
+                            } else {
+                                bat '''
+                                    set "JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8 -Duser.timezone=%TZ% -Djavax.net.ssl.trustStore=%JAVA_TRUSTSTORE_PATH% -Djavax.net.ssl.trustStorePassword=%JAVA_TRUSTSTORE_PASSWORD%"
+                                    gradlew.bat clean test build %GRADLE_ARGS%
+                                '''
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Frontend Build') {
+            steps {
+                withCredentials([
+                    file(credentialsId: "${env.NODE_CA_CERT_FILE_CRED_ID}", variable: 'NODE_CA_CERT_FILE')
+                ]) {
+                    dir("${env.FRONTEND_DIR}") {
+                        script {
+                            if (isUnix()) {
+                                sh '''
+                                    set -eu
+                                    export NODE_EXTRA_CA_CERTS="${NODE_CA_CERT_FILE}"
+                                    npm config set cafile "${NODE_CA_CERT_FILE}"
+                                    npm ci ${NPM_CI_FLAGS}
+                                    npm run lint
+                                    npm run build
+                                '''
+                            } else {
+                                bat '''
+                                    set "NODE_EXTRA_CA_CERTS=%NODE_CA_CERT_FILE%"
+                                    npm config set cafile "%NODE_CA_CERT_FILE%"
+                                    npm.cmd ci %NPM_CI_FLAGS%
+                                    npm.cmd run lint
+                                    npm.cmd run build
+                                '''
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                script {
+                    env.IMAGE_TAG = "${env.BUILD_NUMBER}"
+                    env.BACKEND_IMAGE = "${env.DOCKER_REGISTRY}/${env.DOCKER_NAMESPACE}/${env.BACKEND_IMAGE_NAME}:${env.IMAGE_TAG}"
+                    env.FRONTEND_IMAGE = "${env.DOCKER_REGISTRY}/${env.DOCKER_NAMESPACE}/${env.FRONTEND_IMAGE_NAME}:${env.IMAGE_TAG}"
+                }
+                withCredentials([
+                    usernamePassword(credentialsId: "${env.REGISTRY_CREDENTIALS_ID}", usernameVariable: 'REGISTRY_USERNAME', passwordVariable: 'REGISTRY_PASSWORD')
+                ]) {
+                    script {
+                        if (isUnix()) {
+                            sh '''
+                                set -eu
+                                echo "${REGISTRY_PASSWORD}" | docker login "${DOCKER_REGISTRY}" -u "${REGISTRY_USERNAME}" --password-stdin
+                                docker build -t "${BACKEND_IMAGE}" "${BACKEND_DIR}"
+                                docker build -t "${FRONTEND_IMAGE}" "${FRONTEND_DIR}"
+                                docker push "${BACKEND_IMAGE}"
+                                docker push "${FRONTEND_IMAGE}"
+                                docker logout "${DOCKER_REGISTRY}"
+                            '''
+                        } else {
+                            bat '''
+                                echo %REGISTRY_PASSWORD% | docker login %DOCKER_REGISTRY% -u %REGISTRY_USERNAME% --password-stdin
+                                docker build -t %BACKEND_IMAGE% %BACKEND_DIR%
+                                docker build -t %FRONTEND_IMAGE% %FRONTEND_DIR%
+                                docker push %BACKEND_IMAGE%
+                                docker push %FRONTEND_IMAGE%
+                                docker logout %DOCKER_REGISTRY%
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Deploy Dev') {
+            when {
+                branch "${env.DEV_BRANCH}"
+            }
+            steps {
+                sshagent(credentials: ["${env.DEPLOY_SSH_CREDENTIALS_ID}"]) {
+                    script {
+                        if (isUnix()) {
+                            sh '''
+                                set -eu
+                                ssh -o StrictHostKeyChecking=yes ${DEPLOY_SSH_USER}@${DEV_DEPLOY_HOST} '
+                                  export BACKEND_IMAGE='"${BACKEND_IMAGE}"' FRONTEND_IMAGE='"${FRONTEND_IMAGE}"';
+                                  cd /opt/awesome-spring-project &&
+                                  docker compose -f docker-compose.dev.yml pull &&
+                                  docker compose -f docker-compose.dev.yml up -d
+                                '
+                            '''
+                        } else {
+                            bat '''
+                                ssh -o StrictHostKeyChecking=yes %DEPLOY_SSH_USER%@%DEV_DEPLOY_HOST% ^
+                                "set BACKEND_IMAGE=%BACKEND_IMAGE% && set FRONTEND_IMAGE=%FRONTEND_IMAGE% && cd /opt/awesome-spring-project && docker compose -f docker-compose.dev.yml pull && docker compose -f docker-compose.dev.yml up -d"
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Approve Production Deployment') {
+            when {
+                branch "${env.PROD_BRANCH}"
+            }
+            steps {
+                input message: 'Deploy to production with HTTPS + Nginx reverse proxy?', ok: 'Deploy'
+            }
+        }
+
+        stage('Deploy Prod') {
+            when {
+                branch "${env.PROD_BRANCH}"
+            }
+            steps {
+                sshagent(credentials: ["${env.DEPLOY_SSH_CREDENTIALS_ID}"]) {
+                    script {
+                        if (isUnix()) {
+                            sh '''
+                                set -eu
+                                ssh -o StrictHostKeyChecking=yes ${DEPLOY_SSH_USER}@${PROD_DEPLOY_HOST} '
+                                  export BACKEND_IMAGE='"${BACKEND_IMAGE}"' FRONTEND_IMAGE='"${FRONTEND_IMAGE}"';
+                                  cd /opt/awesome-spring-project &&
+                                  docker compose -f docker-compose.prod.yml pull &&
+                                  docker compose -f docker-compose.prod.yml up -d &&
+                                  docker compose -f docker-compose.prod.yml exec -T nginx nginx -t &&
+                                  docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload
+                                '
+                            '''
+                        } else {
+                            bat '''
+                                ssh -o StrictHostKeyChecking=yes %DEPLOY_SSH_USER%@%PROD_DEPLOY_HOST% ^
+                                "set BACKEND_IMAGE=%BACKEND_IMAGE% && set FRONTEND_IMAGE=%FRONTEND_IMAGE% && cd /opt/awesome-spring-project && docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d && docker compose -f docker-compose.prod.yml exec -T nginx nginx -t && docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload"
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'frontend/dist/**, awesome-project/build/libs/**', onlyIfSuccessful: false
+            junit allowEmptyResults: true, testResults: 'awesome-project/build/test-results/test/*.xml'
+            cleanWs(cleanWhenNotBuilt: false, deleteDirs: true, disableDeferredWipeout: true)
+        }
+        success {
+            echo 'Pipeline completed successfully.'
+        }
+        failure {
+            echo 'Pipeline failed. Check TLS/truststore credentials, DB credentials, and deployment host connectivity.'
+        }
+    }
+}
