@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:16.6-bookworm
+    container_name: awesome-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DEV_POSTGRES_DB}
+      POSTGRES_USER: ${DEV_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${DEV_POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: ${DEV_POSTGRES_INITDB_ARGS}
+      TZ: ${DEV_TZ}
+      PGTZ: ${DEV_PGTZ}
+    command: ["postgres", "-c", "timezone=${DEV_PGTZ}", "-c", "log_timezone=${DEV_PGTZ}"]
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DEV_POSTGRES_USER} -d ${DEV_POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app_net
+
+  backend:
+    image: ${DEV_BACKEND_IMAGE}
+    container_name: awesome-backend-dev
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DB_URL: jdbc:postgresql://postgres:5432/${DEV_POSTGRES_DB}
+      DB_USERNAME: ${DEV_POSTGRES_USER}
+      DB_PASSWORD: ${DEV_POSTGRES_PASSWORD}
+      TZ: ${DEV_TZ}
+      LANG: ${DEV_LANG}
+      LC_ALL: ${DEV_LC_ALL}
+    ports:
+      - "${DEV_BACKEND_PORT}:8080"
+    networks:
+      - app_net
+
+  frontend:
+    image: ${DEV_FRONTEND_IMAGE}
+    container_name: awesome-frontend-dev
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      TZ: ${DEV_TZ}
+      LANG: ${DEV_LANG}
+      LC_ALL: ${DEV_LC_ALL}
+    ports:
+      - "${DEV_FRONTEND_PORT}:80"
+    networks:
+      - app_net
+
+volumes:
+  postgres_dev_data:
+
+networks:
+  app_net:
+    name: awesome-dev-net
