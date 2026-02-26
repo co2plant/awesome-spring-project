@@ -22,7 +22,7 @@ services:
       - app_net
 
   backend:
-    image: ${DEV_BACKEND_IMAGE}
+    image: ${BACKEND_IMAGE}
     container_name: awesome-backend-dev
     restart: unless-stopped
     depends_on:
@@ -42,7 +42,7 @@ services:
       - app_net
 
   frontend:
-    image: ${DEV_FRONTEND_IMAGE}
+    image: ${FRONTEND_IMAGE}
     container_name: awesome-frontend-dev
     restart: unless-stopped
     depends_on:

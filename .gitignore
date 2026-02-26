@@ -300,3 +300,7 @@ tags
 .ionide
 
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode,intellij,eclipse,vim,emacs
+
+# Gradle Wrapper
+!awesome-project/gradle/wrapper/gradle-wrapper.jar
+
