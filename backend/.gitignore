@@ -1,0 +1,40 @@
+# 1. Build & Compile Artifacts
+.gradle/
+build/
+out/
+bin/
+!gradle/wrapper/gradle-wrapper.jar
+
+# 2. Java Standard
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# 3. Logs & Crash Reports
+*.log
+hs_err_pid*
+replay_pid*
+
+# 4. Security & Local Configs
+application-secret.yml
+application-secret.properties
+application-local.yml
+application-local.properties
+.env
+.env.local
+
+# 5. Spring Boot & Testing Extras
+HELP.md
+
+# Local H2 DB
+*.h2.db
+.h2.server.properties
+
+coverage/
+jacoco/
+.sonar/

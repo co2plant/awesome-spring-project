@@ -1,0 +1,88 @@
+services:
+  postgres:
+    image: postgres:16.6-bookworm
+    container_name: awesome-postgres-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PROD_POSTGRES_DB}
+      POSTGRES_USER: ${PROD_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${PROD_POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: ${PROD_POSTGRES_INITDB_ARGS}
+      TZ: ${PROD_TZ}
+      PGTZ: ${PROD_PGTZ}
+    command: ["postgres", "-c", "timezone=${PROD_PGTZ}", "-c", "log_timezone=${PROD_PGTZ}"]
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PROD_POSTGRES_USER} -d ${PROD_POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app_net
+
+  backend:
+    image: ${BACKEND_IMAGE}
+    container_name: awesome-backend-prod
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://postgres:5432/${PROD_POSTGRES_DB}
+      DB_USERNAME: ${PROD_POSTGRES_USER}
+      DB_PASSWORD: ${PROD_POSTGRES_PASSWORD}
+      TZ: ${PROD_TZ}
+      LANG: ${PROD_LANG}
+      LC_ALL: ${PROD_LC_ALL}
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+    expose:
+      - "8080"
+    networks:
+      - app_net
+
+  frontend:
+    image: ${FRONTEND_IMAGE}
+    container_name: awesome-frontend-prod
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      TZ: ${PROD_TZ}
+      LANG: ${PROD_LANG}
+      LC_ALL: ${PROD_LC_ALL}
+    expose:
+      - "80"
+    networks:
+      - app_net
+
+  nginx:
+    image: nginx:1.27.4-alpine
+    container_name: awesome-nginx-prod
+    restart: unless-stopped
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ${NGINX_CERTS_DIR}:/etc/nginx/certs:ro
+      - nginx_logs:/var/log/nginx
+    environment:
+      TZ: ${PROD_TZ}
+      LANG: ${PROD_LANG}
+      LC_ALL: ${PROD_LC_ALL}
+    networks:
+      - app_net
+
+volumes:
+  postgres_prod_data:
+  nginx_logs:
+
+networks:
+  app_net:
+    name: awesome-prod-net
