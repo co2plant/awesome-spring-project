@@ -86,7 +86,7 @@ docker compose --env-file env/dev/.env -f docker-compose.dev.yml logs postgres -
 ## 7. 빌드/테스트 검증
 실행(백엔드):
 ```bash
-cd awesome-project
+cd backend
 ./gradlew clean test build
 ```
 
@@ -109,7 +109,7 @@ npm run build
 2. 포트 충돌 (`5432`, `DEV_BACKEND_PORT`, `DEV_FRONTEND_PORT`)
 3. Docker 상태(재기동/볼륨 꼬임)
 4. DB 계정/비밀번호 불일치
-5. `awesome-project/gradle/wrapper/gradle-wrapper.jar` 누락 여부
+5. `backend/gradle/wrapper/gradle-wrapper.jar` 누락 여부
 
 ## 9. 종료 명령
 ```bash

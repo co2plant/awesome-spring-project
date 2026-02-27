@@ -76,6 +76,6 @@ docker compose --env-file env/prod/.env -f docker-compose.prod.yml exec -T nginx
 - `main` 브랜치: 빌드 + 이미지 푸시 + 수동 승인 + Prod 배포
 
 ## 10. 현재 선행 이슈
-- `awesome-project/gradle/wrapper/gradle-wrapper.jar` 파일이 현재 저장소에 없습니다.
+- `backend/gradle/wrapper/gradle-wrapper.jar` 파일이 현재 저장소에 없습니다.
 - 따라서 `./gradlew` 실행이 불가능합니다.
 - CI 빌드 스테이지를 활성화하기 전에 Wrapper jar 복구(또는 시스템 Gradle 사용)가 필요합니다.

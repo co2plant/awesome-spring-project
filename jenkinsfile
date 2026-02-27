@@ -19,7 +19,7 @@ pipeline {
     environment {
         // General
         APP_NAME = 'awesome-spring-project'
-        BACKEND_DIR = 'awesome-project'
+        BACKEND_DIR = 'backend'
         FRONTEND_DIR = 'frontend'
         TZ = 'Asia/Seoul'
         LANG = 'C.UTF-8'
@@ -277,8 +277,8 @@ pipeline {
 
     post {
         always {
-            archiveArtifacts artifacts: 'frontend/dist/**, awesome-project/build/libs/**', onlyIfSuccessful: false
-            junit allowEmptyResults: true, testResults: 'awesome-project/build/test-results/test/*.xml'
+            archiveArtifacts artifacts: 'frontend/dist/**, backend/build/libs/**', onlyIfSuccessful: false
+            junit allowEmptyResults: true, testResults: 'backend/build/test-results/test/*.xml'
             cleanWs(cleanWhenNotBuilt: false, deleteDirs: true, disableDeferredWipeout: true)
         }
         success {

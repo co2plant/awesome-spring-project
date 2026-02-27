@@ -8,7 +8,7 @@
 - 팀 실행 방식 통일
 
 ## 2. 적용 범위
-- 대상: `awesome-project`(Spring Boot 백엔드) 직접 실행
+- 대상: `backend`(Spring Boot 백엔드) 직접 실행
 - 환경: 로컬 개발환경(Windows/macOS/Linux + IntelliJ)
 - 제외: Jenkins/운영 배포 절차 (`DEPLOYMENT.md` 참조)
 
@@ -23,7 +23,7 @@
 - [ ] IntelliJ Project SDK가 JDK 21인지 확인
 - [ ] PostgreSQL 기동 상태 확인(로컬 또는 Docker)
 - [ ] DB 접속정보 준비
-- [ ] `awesome-project/gradle/wrapper/gradle-wrapper.jar` 존재 여부 확인
+- [ ] `backend/gradle/wrapper/gradle-wrapper.jar` 존재 여부 확인
 
 주의:
 - Wrapper jar가 누락되면 `gradlew` 실행이 실패할 수 있습니다.
@@ -43,9 +43,9 @@
 ## 6. IntelliJ 설정 절차
 1. `Run | Edit Configurations...` 진입
 2. `Spring Boot` 유형으로 `AwesomeProjectApplication` 실행 구성 생성
-3. `Use classpath of module`을 `awesome-project`로 지정
+3. `Use classpath of module`을 `backend`로 지정
 4. `JRE`를 21로 지정
-5. `Working directory`를 `awesome-project`로 지정
+5. `Working directory`를 `backend`로 지정
 6. `Environment variables`에 필수값 입력
 7. 저장 후 실행
 
@@ -93,7 +93,7 @@ $env:DB_URL="jdbc:postgresql://localhost:5432/awesome_dev"
 $env:DB_USERNAME="awesome_dev_user"
 $env:DB_PASSWORD="change_me_dev"
 $env:SPRING_PROFILES_ACTIVE="dev"
-cd awesome-project
+cd backend
 .\gradlew.bat bootRun
 ```
 

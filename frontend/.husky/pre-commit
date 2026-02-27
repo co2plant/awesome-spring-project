@@ -1,0 +1,29 @@
+echo "Running code convention checks (pre-commit)"
+
+# 1. Frontend - lint-staged (Prettier & ESLint)
+echo "---------------------------------------"
+echo "1/2 Frontend (Vite/React) formatting..."
+cd frontend
+npx lint-staged
+FRONTEND_STATUS=$?
+cd ..
+
+# 2. Backend - Spotless (Google Java Format)
+echo "---------------------------------------"
+echo "2/2 Backend (Spring Boot) formatting..."
+cd backend
+if [ -f "gradlew.bat" ]; then
+  ./gradlew.bat spotlessApply
+else
+  ./gradlew spotlessApply
+fi
+BACKEND_STATUS=$?
+cd ..
+
+echo "---------------------------------------"
+if [ $FRONTEND_STATUS -ne 0 ] || [ $BACKEND_STATUS -ne 0 ]; then
+  echo "Code convention check failed. Please fix the errors above."
+  exit 1
+else
+  echo "All code is formatted. Continuing commit..."
+fi
