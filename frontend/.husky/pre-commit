@@ -1,4 +1,5 @@
 echo "Running code convention checks (pre-commit)"
+set +e
 
 # 1. Frontend - lint-staged (Prettier & ESLint)
 echo "---------------------------------------"
@@ -12,12 +13,13 @@ cd ..
 echo "---------------------------------------"
 echo "2/2 Backend (Spring Boot) formatting..."
 cd backend
-if [ -f "gradlew.bat" ]; then
-  ./gradlew.bat spotlessApply
-else
+if [ -f "gradle/wrapper/gradle-wrapper.jar" ] && [ -f "gradlew" ]; then
   ./gradlew spotlessApply
+  BACKEND_STATUS=$?
+else
+  echo "Skipping backend Spotless: Gradle wrapper is missing (backend/gradle/wrapper/gradle-wrapper.jar)."
+  BACKEND_STATUS=0
 fi
-BACKEND_STATUS=$?
 cd ..
 
 echo "---------------------------------------"
